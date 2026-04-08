@@ -15,9 +15,11 @@ pip install uv
 Next, navigate to your project directory and install the dependencies:
 
 (Optional) Lock the dependencies and install them by using the CLI command:
+
 ```bash
 crewai install
 ```
+
 ### Customizing
 
 **Add your `OPENAI_API_KEY` into the `.env` file**
@@ -65,6 +67,11 @@ Notes:
 
 - First run opens a browser for OAuth consent and creates `GMAIL_TOKEN_PATH`.
 - `GMAIL_MARK_AS_READ=true` prevents reprocessing the same email.
+- The manual scan command prefers values from `.env` (including `ANTHROPIC_API_KEY` and `MODEL`) even if different values are already exported in your shell.
+
+Optional:
+
+- Use `SCAN_DOTENV_PATH=/path/to/.env` to point to a different env file for scan runs.
 
 ### 3) Run the manual scan
 
@@ -85,6 +92,7 @@ The crew-azam Crew is composed of multiple AI agents, each with unique roles, go
 ## Support
 
 For support, questions, or feedback regarding the CrewAzam Crew or crewAI.
+
 - Visit our [documentation](https://docs.crewai.com)
 - Reach out to us through our [GitHub repository](https://github.com/joaomdmoura/crewai)
 - [Join our Discord](https://discord.com/invite/X4JWnZnxPb)

@@ -8,6 +8,44 @@ from datetime import datetime
 from crew_azam.crew import CrewAzam
 from crew_azam.gmail_polling import GmailPollingService
 
+
+def _safe_key_fingerprint(key: str) -> str:
+    if not key:
+        return "<empty>"
+    if len(key) < 10:
+        return "<too-short>"
+    return f"{key[:8]}...{key[-4:]}"
+
+
+def _prefer_dotenv_for_scan() -> None:
+    """Override selected runtime env vars with values from .env for scan flow."""
+    from dotenv import dotenv_values
+
+    dotenv_path = os.getenv("SCAN_DOTENV_PATH", ".env")
+    dotenv_values_map = dotenv_values(dotenv_path)
+
+    override_keys = (
+        "ANTHROPIC_API_KEY",
+        "MODEL",
+        "GMAIL_CREDENTIALS_PATH",
+        "GMAIL_TOKEN_PATH",
+        "GMAIL_QUERY",
+        "GMAIL_MAX_RESULTS",
+        "GMAIL_MARK_AS_READ",
+    )
+
+    for key in override_keys:
+        value = dotenv_values_map.get(key)
+        if value is not None and value != "":
+            os.environ[key] = str(value)
+
+    key = os.getenv("ANTHROPIC_API_KEY", "")
+    model = os.getenv("MODEL", "<unset>")
+    print(
+        "scan env source: .env preferred | "
+        f"MODEL={model} | ANTHROPIC_API_KEY={_safe_key_fingerprint(key)}"
+    )
+
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
 # This main file is intended to be a way for you to run your
@@ -98,7 +136,9 @@ def run_with_trigger():
 
 def scan_unread_emails():
     """Manually scan unread Gmail messages and process each one with receive_email_task."""
-    credentials_path = os.getenv("GMAIL_CREDENTIALS_PATH", "secrets/gmail_credentials.json")
+    _prefer_dotenv_for_scan()
+
+    credentials_path = os.getenv("GMAIL_CREDENTIALS_PATH", "secrets/client_secret_archy.json")
     token_path = os.getenv("GMAIL_TOKEN_PATH", "secrets/gmail_token.json")
     query = os.getenv("GMAIL_QUERY", "in:inbox is:unread")
     max_results = int(os.getenv("GMAIL_MAX_RESULTS", "10"))
