@@ -28,6 +28,13 @@ class CrewAzam():
         )
 
     @agent
+    def invoice_reader(self) -> Agent:
+        return Agent(
+            config=self.agents_config['invoice_reader'], # type: ignore[index]
+            verbose=True
+        )
+
+    @agent
     def researcher(self) -> Agent:
         return Agent(
             config=self.agents_config['researcher'], # type: ignore[index]
@@ -51,6 +58,12 @@ class CrewAzam():
         )
 
     @task
+    def convert_invoice_into_json_task(self) -> Task:
+        return Task(
+            config=self.tasks_config['convert_invoice_into_json_task'], # type: ignore[index]
+        )
+
+    @task
     def research_task(self) -> Task:
         return Task(
             config=self.tasks_config['research_task'], # type: ignore[index]
@@ -68,6 +81,15 @@ class CrewAzam():
         return Crew(
             agents=[self.emailer()],
             tasks=[self.receive_email_task()],
+            process=Process.sequential,
+            verbose=True,
+        )
+
+    def invoice_crew(self) -> Crew:
+        """Creates a single-task crew for invoice extraction."""
+        return Crew(
+            agents=[self.invoice_reader()],
+            tasks=[self.convert_invoice_into_json_task()],
             process=Process.sequential,
             verbose=True,
         )

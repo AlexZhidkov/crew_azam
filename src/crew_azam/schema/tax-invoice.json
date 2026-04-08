@@ -1,0 +1,184 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Unified Australian Tax Invoice Schema",
+    "type": "object",
+    "required": [
+        "document_metadata",
+        "supplier",
+        "customer",
+        "invoice_details",
+        "line_items",
+        "totals"
+    ],
+    "properties": {
+        "document_metadata": {
+            "type": "object",
+            "properties": {
+                "document_type": {
+                    "type": "string",
+                    "enum": [
+                        "Tax Invoice",
+                        "Adjustment Note"
+                    ]
+                },
+                "specification_id": {
+                    "type": "string",
+                    "description": "e.g., urn:peppol:pint:billing-aunz:1.0"
+                },
+                "currency": {
+                    "type": "string",
+                    "default": "AUD"
+                }
+            }
+        },
+        "supplier": {
+            "type": "object",
+            "required": [
+                "name",
+                "abn"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "abn": {
+                    "type": "string",
+                    "pattern": "^[0-9]{11}$"
+                },
+                "address": {
+                    "type": "object"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email"
+                }
+            }
+        },
+        "customer": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "abn": {
+                    "type": "string",
+                    "pattern": "^[0-9]{11}$",
+                    "description": "Mandatory for sales > $1,000"
+                },
+                "buyer_reference": {
+                    "type": "string",
+                    "description": "Peppol requirement for routing"
+                }
+            }
+        },
+        "invoice_details": {
+            "type": "object",
+            "required": [
+                "invoice_number",
+                "issue_date"
+            ],
+            "properties": {
+                "invoice_number": {
+                    "type": "string"
+                },
+                "issue_date": {
+                    "type": "string",
+                    "format": "date"
+                },
+                "due_date": {
+                    "type": "string",
+                    "format": "date"
+                },
+                "purchase_order_reference": {
+                    "type": "string"
+                }
+            }
+        },
+        "line_items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": [
+                    "description",
+                    "net_amount",
+                    "tax_amount"
+                ],
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "quantity": {
+                        "type": "number"
+                    },
+                    "unit_price": {
+                        "type": "number"
+                    },
+                    "gst_category_code": {
+                        "type": "string",
+                        "enum": [
+                            "S",
+                            "E",
+                            "Z",
+                            "O"
+                        ],
+                        "description": "S=Standard, E=Exempt, Z=Zero-rated"
+                    },
+                    "gst_rate": {
+                        "type": "number",
+                        "default": 0.1
+                    },
+                    "net_amount": {
+                        "type": "number"
+                    },
+                    "tax_amount": {
+                        "type": "number"
+                    }
+                }
+            }
+        },
+        "totals": {
+            "type": "object",
+            "required": [
+                "total_excluding_tax",
+                "total_gst",
+                "total_including_tax"
+            ],
+            "properties": {
+                "total_excluding_tax": {
+                    "type": "number"
+                },
+                "total_gst": {
+                    "type": "number"
+                },
+                "total_including_tax": {
+                    "type": "number"
+                },
+                "rounding_amount": {
+                    "type": "number"
+                }
+            }
+        },
+        "payment_instructions": {
+            "type": "object",
+            "properties": {
+                "bsb": {
+                    "type": "string",
+                    "pattern": "^[0-9]{3}-[0-9]{3}$"
+                },
+                "account_number": {
+                    "type": "string"
+                },
+                "account_name": {
+                    "type": "string"
+                },
+                "payment_reference": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

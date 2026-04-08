@@ -10,6 +10,7 @@ from pathlib import Path
 
 from crew_azam.crew import CrewAzam
 from crew_azam.gmail_polling import GmailPollingService
+from pypdf import PdfReader
 
 
 INVOICE_KEYWORDS = (
@@ -146,6 +147,15 @@ def _route_attachments_for_message(
 
     return routed_paths
 
+
+def _extract_pdf_text(pdf_path: Path) -> str:
+    """Extract plain text from a PDF so agents don't need direct file access."""
+    reader = PdfReader(str(pdf_path))
+    pages_text: list[str] = []
+    for page in reader.pages:
+        pages_text.append(page.extract_text() or "")
+    return "\n".join(pages_text).strip()
+
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
 # This main file is intended to be a way for you to run your
@@ -260,6 +270,8 @@ def scan_unread_emails():
 
     print(f"Found {len(messages)} unread message(s).")
     email_crew = CrewAzam().email_crew()
+    invoice_crew = CrewAzam().invoice_crew()
+    invoices_root = Path(incoming_invoices_dir).resolve()
 
     for message in messages:
         print(f"Processing message: {message.message_id} | {message.subject}")
@@ -285,6 +297,34 @@ def scan_unread_emails():
 
         try:
             email_crew.kickoff(inputs=inputs)
+
+            for attachment_path in message.attachments:
+                attachment = Path(attachment_path)
+                if attachment.suffix.lower() != ".pdf":
+                    continue
+                if not attachment.exists():
+                    continue
+
+                try:
+                    is_invoice = attachment.resolve().is_relative_to(invoices_root)
+                except ValueError:
+                    is_invoice = False
+
+                if not is_invoice:
+                    continue
+
+                invoice_inputs = {
+                    "topic": "",
+                    "current_year": str(datetime.now().year),
+                    "invoice_file_path": str(attachment.resolve()),
+                }
+                invoice_text = _extract_pdf_text(attachment)
+                if not invoice_text:
+                    invoice_text = ""
+
+                invoice_inputs["invoice_text"] = invoice_text
+                invoice_crew.kickoff(inputs=invoice_inputs)
+
             if mark_as_read:
                 poller.mark_as_read(message.message_id)
         except Exception as exc:
