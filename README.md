@@ -61,6 +61,7 @@ GMAIL_TOKEN_PATH=secrets/gmail_token.json
 GMAIL_QUERY=in:inbox is:unread
 GMAIL_MAX_RESULTS=10
 GMAIL_MARK_AS_READ=true
+GMAIL_ATTACHMENTS_DIR=data/attachments
 ```
 
 Notes:
@@ -82,6 +83,7 @@ uv run scan_unread_emails
 This command:
 
 - Fetches unread emails from Gmail using `GMAIL_QUERY`.
+- Downloads message attachments into `GMAIL_ATTACHMENTS_DIR`.
 - Triggers `receive_email_task` once per unread message.
 - Marks processed messages as read when enabled.
 

@@ -143,8 +143,13 @@ def scan_unread_emails():
     query = os.getenv("GMAIL_QUERY", "in:inbox is:unread")
     max_results = int(os.getenv("GMAIL_MAX_RESULTS", "10"))
     mark_as_read = os.getenv("GMAIL_MARK_AS_READ", "true").lower() == "true"
+    attachments_dir = os.getenv("GMAIL_ATTACHMENTS_DIR", "data/attachments")
 
-    poller = GmailPollingService(credentials_path=credentials_path, token_path=token_path)
+    poller = GmailPollingService(
+        credentials_path=credentials_path,
+        token_path=token_path,
+        attachments_dir=attachments_dir,
+    )
     messages = poller.list_unread(query=query, max_results=max_results)
 
     if not messages:
