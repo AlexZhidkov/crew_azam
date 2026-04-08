@@ -1,12 +1,34 @@
 #!/usr/bin/env python
 import os
+import re
+import shutil
 import sys
 import warnings
 
 from datetime import datetime
+from pathlib import Path
 
 from crew_azam.crew import CrewAzam
 from crew_azam.gmail_polling import GmailPollingService
+
+
+INVOICE_KEYWORDS = (
+    "invoice",
+    "tax invoice",
+    "bill",
+    "amount due",
+    "statement",
+    "inv",
+)
+
+RECEIPT_KEYWORDS = (
+    "receipt",
+    "proof of payment",
+    "paid",
+    "payment confirmation",
+    "transaction",
+    "txn",
+)
 
 
 def _safe_key_fingerprint(key: str) -> str:
@@ -18,7 +40,7 @@ def _safe_key_fingerprint(key: str) -> str:
 
 
 def _prefer_dotenv_for_scan() -> None:
-    """Override selected runtime env vars with values from .env for scan flow."""
+    """Override scan runtime env vars with values from .env."""
     from dotenv import dotenv_values
 
     dotenv_path = os.getenv("SCAN_DOTENV_PATH", ".env")
@@ -32,6 +54,9 @@ def _prefer_dotenv_for_scan() -> None:
         "GMAIL_QUERY",
         "GMAIL_MAX_RESULTS",
         "GMAIL_MARK_AS_READ",
+        "GMAIL_ATTACHMENTS_DIR",
+        "INCOMING_INVOICES_DIR",
+        "INCOMING_RECEIPTS_DIR",
     )
 
     for key in override_keys:
@@ -45,6 +70,81 @@ def _prefer_dotenv_for_scan() -> None:
         "scan env source: .env preferred | "
         f"MODEL={model} | ANTHROPIC_API_KEY={_safe_key_fingerprint(key)}"
     )
+
+
+def _keyword_score(text: str, keywords: tuple[str, ...]) -> int:
+    score = 0
+    for keyword in keywords:
+        if keyword in text:
+            score += 1
+    return score
+
+
+def _classify_pdf_attachment(subject: str, body: str, filename: str) -> str | None:
+    combined = " ".join([subject, body, filename]).lower()
+    combined = re.sub(r"\s+", " ", combined).strip()
+
+    invoice_score = _keyword_score(combined, INVOICE_KEYWORDS)
+    receipt_score = _keyword_score(combined, RECEIPT_KEYWORDS)
+
+    if invoice_score == 0 and receipt_score == 0:
+        return None
+    if invoice_score > receipt_score:
+        return "invoice"
+    if receipt_score > invoice_score:
+        return "receipt"
+    return None
+
+
+def _unique_destination_path(directory: Path, filename: str) -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
+    candidate = directory / filename
+    if not candidate.exists():
+        return candidate
+
+    stem = candidate.stem
+    suffix = candidate.suffix
+    for index in range(2, 1000):
+        next_candidate = directory / f"{stem}_{index}{suffix}"
+        if not next_candidate.exists():
+            return next_candidate
+
+    raise RuntimeError(f"Unable to create unique filename for {filename}")
+
+
+def _route_attachments_for_message(
+    subject: str,
+    body: str,
+    attachments: list[str],
+    invoices_dir: str,
+    receipts_dir: str,
+) -> list[str]:
+    routed_paths: list[str] = []
+    for attachment_path in attachments:
+        source = Path(attachment_path)
+        if not source.exists():
+            routed_paths.append(str(source))
+            continue
+
+        if source.suffix.lower() != ".pdf":
+            routed_paths.append(str(source))
+            continue
+
+        classification = _classify_pdf_attachment(subject=subject, body=body, filename=source.name)
+        if classification == "invoice":
+            destination_dir = Path(invoices_dir)
+        elif classification == "receipt":
+            destination_dir = Path(receipts_dir)
+        else:
+            routed_paths.append(str(source))
+            continue
+
+        destination_path = _unique_destination_path(destination_dir, source.name)
+        moved_path = Path(shutil.move(str(source), str(destination_path)))
+        routed_paths.append(str(moved_path))
+        print(f"Routed attachment: {source.name} -> {moved_path}")
+
+    return routed_paths
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
@@ -144,6 +244,8 @@ def scan_unread_emails():
     max_results = int(os.getenv("GMAIL_MAX_RESULTS", "10"))
     mark_as_read = os.getenv("GMAIL_MARK_AS_READ", "true").lower() == "true"
     attachments_dir = os.getenv("GMAIL_ATTACHMENTS_DIR", "data/attachments")
+    incoming_invoices_dir = os.getenv("INCOMING_INVOICES_DIR", "data/IncomingInvoices")
+    incoming_receipts_dir = os.getenv("INCOMING_RECEIPTS_DIR", "data/IncomingReceipts")
 
     poller = GmailPollingService(
         credentials_path=credentials_path,
@@ -161,6 +263,14 @@ def scan_unread_emails():
 
     for message in messages:
         print(f"Processing message: {message.message_id} | {message.subject}")
+        message.attachments = _route_attachments_for_message(
+            subject=message.subject,
+            body=message.body,
+            attachments=message.attachments,
+            invoices_dir=incoming_invoices_dir,
+            receipts_dir=incoming_receipts_dir,
+        )
+
         inputs = {
             "topic": "",
             "current_year": str(datetime.now().year),

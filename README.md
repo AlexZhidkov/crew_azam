@@ -62,13 +62,15 @@ GMAIL_QUERY=in:inbox is:unread
 GMAIL_MAX_RESULTS=10
 GMAIL_MARK_AS_READ=true
 GMAIL_ATTACHMENTS_DIR=data/attachments
+INCOMING_INVOICES_DIR=data/IncomingInvoices
+INCOMING_RECEIPTS_DIR=data/IncomingReceipts
 ```
 
 Notes:
 
 - First run opens a browser for OAuth consent and creates `GMAIL_TOKEN_PATH`.
 - `GMAIL_MARK_AS_READ=true` prevents reprocessing the same email.
-- The manual scan command prefers values from `.env` (including `ANTHROPIC_API_KEY` and `MODEL`) even if different values are already exported in your shell.
+- The manual scan command prefers values from `.env` for all scan-related variables above (and also `ANTHROPIC_API_KEY` and `MODEL`) even if different values are already exported in your shell.
 
 Optional:
 
@@ -84,6 +86,9 @@ This command:
 
 - Fetches unread emails from Gmail using `GMAIL_QUERY`.
 - Downloads message attachments into `GMAIL_ATTACHMENTS_DIR`.
+- Auto-routes PDF attachments using subject/body/filename heuristics:
+  - Invoice-like documents -> `INCOMING_INVOICES_DIR`
+  - Receipt-like documents -> `INCOMING_RECEIPTS_DIR`
 - Triggers `receive_email_task` once per unread message.
 - Marks processed messages as read when enabled.
 
