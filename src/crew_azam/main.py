@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import json
 import os
 import re
 import shutil
@@ -7,6 +8,7 @@ import warnings
 
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from crew_azam.crew import CrewAzam
 from crew_azam.gmail_polling import GmailPollingService
@@ -155,6 +157,38 @@ def _extract_pdf_text(pdf_path: Path) -> str:
     for page in reader.pages:
         pages_text.append(page.extract_text() or "")
     return "\n".join(pages_text).strip()
+
+
+def _extract_json_text(raw_output: str) -> str:
+    """Extract a JSON object string from plain text or fenced markdown."""
+    text = raw_output.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+
+    first_brace = text.find("{")
+    last_brace = text.rfind("}")
+    if first_brace == -1 or last_brace == -1 or first_brace > last_brace:
+        raise ValueError("No JSON object found in invoice crew output")
+    return text[first_brace:last_brace + 1]
+
+
+def _save_invoice_json_result(pdf_path: Path, crew_result: Any) -> Path:
+    """Save invoice JSON output next to the source PDF with the same basename."""
+    raw_output = getattr(crew_result, "raw", None)
+    if not isinstance(raw_output, str) or not raw_output.strip():
+        raw_output = str(crew_result)
+
+    json_text = _extract_json_text(raw_output)
+    parsed = json.loads(json_text)
+
+    output_path = pdf_path.with_suffix(".json")
+    output_path.write_text(json.dumps(parsed, indent=2) + "\n", encoding="utf-8")
+    return output_path
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
@@ -323,7 +357,9 @@ def scan_unread_emails():
                     invoice_text = ""
 
                 invoice_inputs["invoice_text"] = invoice_text
-                invoice_crew.kickoff(inputs=invoice_inputs)
+                invoice_result = invoice_crew.kickoff(inputs=invoice_inputs)
+                output_json_path = _save_invoice_json_result(attachment, invoice_result)
+                print(f"Saved extracted invoice JSON: {output_json_path}")
 
             if mark_as_read:
                 poller.mark_as_read(message.message_id)
